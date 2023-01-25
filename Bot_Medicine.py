@@ -8,14 +8,14 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 
-
 from aiogram import Dispatcher, Bot, types, executor
 from aiogram.types import ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, InputMedia
 from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.dispatcher import FSMContext
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.utils.markdown import hlink
 
-Token_bot = ' '
+Token_bot = '5224662237:AAHinmeM1NgsnRAqHIS1Vk55PzOgSwS0i_M'
 
 loop = asyncio.get_event_loop()
 
@@ -27,7 +27,6 @@ class Form(StatesGroup):
     search_methood = State()
     location = State()
     name_medecine = State()
-
 
 def pars_pharmacy(name_medicine, coordinates):
     global all_medicine
@@ -58,7 +57,7 @@ def pars_pharmacy(name_medicine, coordinates):
             time.sleep(2)
 
         except:
-            print("В нашей базе нет такого лекарства. Попробуйте ещё раз, возможно вы ввели название не правильно.")
+            return None
 
         response_search_result = driver.page_source
 
@@ -80,11 +79,12 @@ def pars_pharmacy(name_medicine, coordinates):
     return dict(zip(all_medicine, link_Medicine))
 
 def pars_addres(url):
-    global user_data, coordinates, list_address, list_link, list_name_address, list_cost
+    global user_data, coordinates, list_address, list_link, list_name_address, list_cost, list_meter
     list_link = []
     list_address = []
     list_name_address = []
     list_cost = []
+    list_meter = []
     if user_data.get('search_methood') == '💰 Просто дешевле':
         s = Service('C:/Users/User/Desktop/All/Activity/Python/Задачи/chromedriver.exe')
         driver = webdriver.Chrome(service=s)
@@ -138,7 +138,10 @@ def pars_addres(url):
             except:
                 continue
 
+
+
         return dict(zip(list_address, list_link))
+
     else:
         s = Service('C:/Users/User/Desktop/All/Activity/Python/Задачи/chromedriver.exe')
         driver = webdriver.Chrome(service=s)
@@ -189,10 +192,9 @@ def pars_addres(url):
                 list_link.append(i.find('a', 'ama-org-name').get('href'))
                 list_address.append(i.find('div', 'ama-org-addr').text)
                 list_cost.append(i.find('span', 'ama-org-minp').text)
-
+                list_meter.append(i.find('span', 'ama-org-dist').text)
             except:
                 continue
-
         return dict(zip(list_address, list_link))
 
 @dp.message_handler(commands=['start'])
@@ -252,27 +254,33 @@ async def name_medecine(message: types.Message, state: FSMContext):
 
     complite_result = pars_pharmacy(user_data.get('name_medecine'), coordinates)
 
-    number_position = 0
+    if complite_result == None:
+        markup = InlineKeyboardMarkup()
+        MM = InlineKeyboardButton('Вернуться в начало', callback_data='menu')
+        markup.add(MM)
+        await bot.send_message(message.chat.id, 'В нашей базе нет такого лекарства. Попробуйте ещё раз, возможно вы ввели название не правильно.', reply_markup=markup)
 
-    markup = InlineKeyboardMarkup(row_width=3)
-    back = InlineKeyboardButton('Предыдущее лекарство', callback_data='back_address')
-    position = InlineKeyboardButton(f'{number_position + 1}/{len(all_medicine)}', callback_data=' ')
-    next = InlineKeyboardButton('Следующее лекарство', callback_data='next_address')
-    choice = InlineKeyboardButton('Показать адреса с этим лекарством', callback_data=f'Medicine_{number_position}')
-    MM = InlineKeyboardButton('Вернуться в начало', callback_data='menu')
-    markup.add(back, position, next)
-    markup.row_width = 1
-    markup.add(choice, MM)
+    else:
+        number_position = 0
 
-    text = f'''Выберите наименование из предложенных:\n
+        markup = InlineKeyboardMarkup(row_width=3)
+        back = InlineKeyboardButton('Предыдущее лекарство', callback_data='back_address')
+        position = InlineKeyboardButton(f'{number_position + 1}/{len(all_medicine)}', callback_data=' ')
+        next = InlineKeyboardButton('Следующее лекарство', callback_data='next_address')
+        choice = InlineKeyboardButton('Показать адреса с этим лекарством', callback_data=f'Medicine_{number_position}')
+        MM = InlineKeyboardButton('Вернуться в начало', callback_data='menu')
+        markup.add(back, position, next)
+        markup.row_width = 1
+        markup.add(choice, MM)
+
+        text = f'''Выберите наименование из предложенных:\n
 {all_medicine[number_position]}'''
 
-    await bot.send_message(message.chat.id, text, reply_markup=markup)
+        await bot.send_message(message.chat.id, text, reply_markup=markup)
 
 @dp.message_handler(content_types=["location"])
 async def location(message: types.Message):
     global coordinates
-
     coordinates = []
 
     if message.location is not None:
@@ -284,7 +292,7 @@ async def location(message: types.Message):
 
 @dp.callback_query_handler(lambda call: True)
 async def call_back(call: CallbackQuery):
-    global all_medicine, complite_result, list_address, list_link, list_name_address, list_cost, address_and_link, number_position, list_name_address
+    global all_medicine, complite_result, list_address, list_link, list_name_address, list_cost, address_and_link, number_position, list_name_address, list_meter
 
     if call.data.startswith('Medicine'):
         await call.message.edit_text("Потребуется ещё немного времени. Ожидайте.")
@@ -302,12 +310,23 @@ async def call_back(call: CallbackQuery):
         MM = InlineKeyboardButton('Вернуться в начало', callback_data='menu')
         markup.add(back, position, next, MM)
 
-        text = f'''Местоположение аптеки: {list_name_address[number_position]}\n
-Точный адрес: {list_address[number_position]}\n
-Цена при заказе на АптекаМос: {list_cost[number_position]}\n
-Ссылка для заказа: {list_link[number_position]}'''
+        link = hlink('АптекаМос', f'{list_link[number_position]}')
 
-        await bot.send_message(call.message.chat.id, text, reply_markup=markup)
+        if len(list_meter) == 0:
+            text = f'''Местоположение аптеки: {list_name_address[number_position]}\n
+Точный адрес: {list_address[number_position]}\n
+Цена при заказе на {link}: {list_cost[number_position]}'''
+        else:
+            text = f'''Местоположение аптеки: {list_name_address[number_position]}; Расстояние: {list_meter[number_position]}\n
+Точный адрес: {list_address[number_position]}\n
+Цена при заказе на {link}: {list_cost[number_position]}'''
+
+        await bot.edit_message_text(chat_id=call.message.chat.id,
+                                    message_id=call.message.message_id,
+                                    text=text,
+                                    inline_message_id=call.inline_message_id,
+                                    reply_markup=markup,
+                                    parse_mode='HTML')
 
     elif call.data == 'back':
         number_position -= 1
@@ -322,16 +341,23 @@ async def call_back(call: CallbackQuery):
         MM = InlineKeyboardButton('Вернуться в начало', callback_data='menu')
         markup.add(back, position, next, MM)
 
-        text = f'''Местоположение аптеки: {list_name_address[number_position]}\n
+        link = hlink('АптекаМос', f'{list_link[number_position]}')
+
+        if len(list_meter) == 0:
+            text = f'''Местоположение аптеки: {list_name_address[number_position]}\n
 Точный адрес: {list_address[number_position]}\n
-Цена при заказе на АптекаМос: {list_cost[number_position]}\n
-Ссылка для заказа: {list_link[0]}'''
+Цена при заказе на {link}: {list_cost[number_position]}'''
+        else:
+            text = f'''Местоположение аптеки: {list_name_address[number_position]}; Расстояние: {list_meter[number_position]}\n
+Точный адрес: {list_address[number_position]}\n
+Цена при заказе на {link}: {list_cost[number_position]}'''
 
         await bot.edit_message_text(chat_id=call.message.chat.id,
                                     message_id=call.message.message_id,
                                     text=text,
                                     inline_message_id=call.inline_message_id,
-                                    reply_markup=markup)
+                                    reply_markup=markup,
+                                    parse_mode='HTML')
 
     elif call.data == 'next':
         number_position += 1
@@ -346,16 +372,23 @@ async def call_back(call: CallbackQuery):
         MM = InlineKeyboardButton('Вернуться в начало', callback_data='menu')
         markup.add(back, position, next, MM)
 
-        text = f'''Местоположение аптеки: {list_name_address[number_position]}\n
+        link = hlink('АптекаМос', f'{list_link[number_position]}')
+
+        if len(list_meter) == 0:
+            text = f'''Местоположение аптеки: {list_name_address[number_position]}\n
 Точный адрес: {list_address[number_position]}\n
-Цена при заказе на АптекаМос: {list_cost[number_position]}\n
-Ссылка для заказа: {list_link[0]}'''
+Цена при заказе на {link}: {list_cost[number_position]}'''
+        else:
+            text = f'''Местоположение аптеки: {list_name_address[number_position]}; Расстояние: {list_meter[number_position]}\n
+Точный адрес: {list_address[number_position]}\n
+Цена при заказе на {link}: {list_cost[number_position]}'''
 
         await bot.edit_message_text(chat_id=call.message.chat.id,
                                     message_id=call.message.message_id,
                                     text=text,
                                     inline_message_id=call.inline_message_id,
-                                    reply_markup=markup)
+                                    reply_markup=markup,
+                                    parse_mode='HTML')
 
     elif call.data == 'back_address':
         number_position -= 1
