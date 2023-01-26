@@ -15,7 +15,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils.markdown import hlink
 
-Token_bot = '5224662237:AAHinmeM1NgsnRAqHIS1Vk55PzOgSwS0i_M'
+Token_bot = ''
 
 loop = asyncio.get_event_loop()
 
